@@ -20,208 +20,12 @@ import time
 import sys
 from collections import deque
 from typing import Dict, Any, Optional, List, Tuple
-import torch
-import torchaudio
-try:
-    from silero_vad import load_silero_vad, get_speech_timestamps
-    SILERO_VAD_AVAILABLE = True
-except ImportError:
-    SILERO_VAD_AVAILABLE = False
 
 from .config import AudioConfig
 from .utils import (
     DataCollector, AudioUtils, ColorUtils, 
     ensure_directory_exists, create_timestamped_filename
 )
-
-
-class SileroVAD:
-    """
-    Silero Voice Activity Detection wrapper.
-    
-    Provides real-time voice activity detection to filter out
-    background noise and only process actual speech segments.
-    """
-    
-    def __init__(self, sample_rate: int = 16000, device: str = "cpu"):
-        """
-        Initialize Silero VAD.
-        
-        Args:
-            sample_rate: Audio sample rate
-            device: Device to run VAD on ('cpu', 'cuda')
-        """
-        self.sample_rate = sample_rate
-        self.device = device
-        self.model = None
-        self.utils = None
-        self._load_model()
-    
-    def _load_model(self):
-        """Load Silero VAD model."""
-        try:
-            # Method 1: Try using silero-vad package directly
-            if SILERO_VAD_AVAILABLE:
-                try:
-                    self.model = load_silero_vad()
-                    if self.device != "cpu":
-                        self.model = self.model.to(self.device)
-                    self.utils = None
-                    print("Silero VAD model loaded successfully using silero-vad package")
-                    return
-                except Exception as e1:
-                    print(f"Silero-vad package method failed: {e1}")
-            
-            # Method 2: Try torch.hub with different approaches
-            try:
-                # Try loading with explicit return handling
-                result = torch.hub.load(
-                    repo_or_dir='silero-models',
-                    model='silero_vad',
-                    force_reload=False,
-                    onnx=False
-                )
-                
-                # Handle different return formats
-                if isinstance(result, tuple) and len(result) == 2:
-                    self.model, self.utils = result
-                elif isinstance(result, tuple) and len(result) == 1:
-                    self.model = result[0]
-                    self.utils = None
-                else:
-                    self.model = result
-                    self.utils = None
-                    
-            except Exception as e2:
-                print(f"Torch hub method 1 failed: {e2}")
-                # Method 3: Try loading with different parameters
-                try:
-                    result = torch.hub.load(
-                        repo_or_dir='silero-models',
-                        model='silero_vad',
-                        force_reload=True,
-                        onnx=True
-                    )
-                    self.model = result
-                    self.utils = None
-                except Exception as e3:
-                    print(f"Torch hub method 2 failed: {e3}")
-                    # Method 4: Try loading with explicit model name
-                    try:
-                        result = torch.hub.load(
-                            repo_or_dir='snakers4/silero-vad',
-                            model='silero_vad',
-                            force_reload=False,
-                            onnx=False
-                        )
-                        self.model = result
-                        self.utils = None
-                    except Exception as e4:
-                        print(f"Torch hub method 3 failed: {e4}")
-                        # Method 5: Try loading with different repo
-                        try:
-                            result = torch.hub.load(
-                                repo_or_dir='snakers4/silero-vad:master',
-                                model='silero_vad',
-                                force_reload=False,
-                                onnx=False
-                            )
-                            self.model = result
-                            self.utils = None
-                        except Exception as e5:
-                            print(f"Torch hub method 4 failed: {e5}")
-                            raise e2  # Re-raise the original error
-            
-            if self.model is not None:
-                # Only call .to() if it's not a tuple
-                if not isinstance(self.model, tuple):
-                    self.model.to(self.device)
-                print("Silero VAD model loaded successfully using torch.hub")
-            else:
-                raise Exception("Model is None after loading")
-                
-        except Exception as e:
-            print(f"Error loading Silero VAD model: {e}")
-            print("VAD will be disabled - audio will be processed without voice activity detection")
-            self.model = None
-            self.utils = None
-    
-    def detect_voice_activity(self, audio_chunk: np.ndarray, threshold: float = 0.5) -> bool:
-        """
-        Detect voice activity in audio chunk.
-        
-        Args:
-            audio_chunk: Audio data as numpy array
-            threshold: VAD threshold (0.0 to 1.0)
-            
-        Returns:
-            True if voice activity detected, False otherwise
-        """
-        if self.model is None:
-            return True  # Fallback to always process if VAD not available
-        
-        try:
-            # Silero VAD expects specific chunk sizes: 512 for 16kHz, 256 for 8kHz
-            expected_samples = 512 if self.sample_rate == 16000 else 256
-            
-            # Process audio in chunks of the expected size
-            if len(audio_chunk) >= expected_samples:
-                # Take the first chunk of the expected size
-                chunk = audio_chunk[:expected_samples]
-                audio_tensor = torch.from_numpy(chunk).float().unsqueeze(0)  # Add batch dimension
-                
-                # Get voice probability
-                voice_prob = self.model(audio_tensor, self.sample_rate).item()
-                
-                return voice_prob > threshold
-            else:
-                # If chunk is too small, pad it
-                padded_chunk = np.pad(audio_chunk, (0, expected_samples - len(audio_chunk)), 'constant')
-                audio_tensor = torch.from_numpy(padded_chunk).float().unsqueeze(0)
-                
-                voice_prob = self.model(audio_tensor, self.sample_rate).item()
-                return voice_prob > threshold
-                
-        except Exception as e:
-            print(f"VAD detection error: {e}")
-            return True  # Fallback to process audio
-    
-    def get_voice_probability(self, audio_chunk: np.ndarray) -> float:
-        """
-        Get voice probability for audio chunk.
-        
-        Args:
-            audio_chunk: Audio data as numpy array
-            
-        Returns:
-            Voice probability (0.0 to 1.0)
-        """
-        if self.model is None:
-            return 0.5  # Default probability if VAD not available
-        
-        try:
-            # Silero VAD expects specific chunk sizes: 512 for 16kHz, 256 for 8kHz
-            expected_samples = 512 if self.sample_rate == 16000 else 256
-            
-            # Process audio in chunks of the expected size
-            if len(audio_chunk) >= expected_samples:
-                # Take the first chunk of the expected size
-                chunk = audio_chunk[:expected_samples]
-                audio_tensor = torch.from_numpy(chunk).float().unsqueeze(0)  # Add batch dimension
-                
-                voice_prob = self.model(audio_tensor, self.sample_rate).item()
-                return voice_prob
-            else:
-                # If chunk is too small, pad it
-                padded_chunk = np.pad(audio_chunk, (0, expected_samples - len(audio_chunk)), 'constant')
-                audio_tensor = torch.from_numpy(padded_chunk).float().unsqueeze(0)
-                
-                voice_prob = self.model(audio_tensor, self.sample_rate).item()
-                return voice_prob
-                
-        except Exception as e:
-            print(f"VAD probability error: {e}")
-            return 0.5
 
 
 class AudioAnalyzer:
@@ -236,14 +40,6 @@ class AudioAnalyzer:
         
         # Initialize Whisper model
         self._initialize_whisper_model()
-        
-        # Initialize VAD
-        if self.config.enable_vad:
-            self._initialize_vad()
-            # If VAD failed to initialize, disable it
-            if not hasattr(self, 'vad') or self.vad is None or self.vad.model is None:
-                print("VAD initialization failed - disabling VAD")
-                self.config.enable_vad = False
         
         # Initialize audio analysis
         self._initialize_audio_analysis()
@@ -289,31 +85,6 @@ class AudioAnalyzer:
             compute_type="int8" if self.config.device == "cpu" else "int8_float16"
         )
         print("Whisper model loaded successfully")
-    
-    def _initialize_vad(self):
-        """Initialize Voice Activity Detection."""
-        try:
-            self.vad = SileroVAD(
-                sample_rate=self.config.sample_rate,
-                device=self.config.device
-            )
-            
-            # VAD state tracking
-            self.vad_state = {
-                'is_speaking': False,
-                'speech_start_time': None,
-                'silence_start_time': None,
-                'current_speech_segment': [],
-                'voice_probability': 0.0,
-                'speech_segments': [],
-                'total_speech_time': 0.0,
-                'total_silence_time': 0.0
-            }
-            
-            print("VAD initialized successfully")
-        except Exception as e:
-            print(f"Error initializing VAD: {e}")
-            self.vad = None
     
     def _initialize_audio_analysis(self):
         """Initialize audio analysis components."""
@@ -372,12 +143,20 @@ class AudioAnalyzer:
                     audio_to_process = self.buffer[:self.chunk_samples]
                     self.buffer = self.buffer[self.chunk_samples//2:]  # 50% overlap
                     
-                    # Apply VAD filtering if enabled
-                    if self.vad and self.config.enable_vad:
-                        self._process_with_vad(audio_to_process)
-                    else:
-                        # Process without VAD (original behavior)
-                        self._process_audio_directly(audio_to_process)
+                    # Analyze audio features
+                    self._analyze_audio_features(audio_to_process)
+                    
+                    # Skip processing if energy is too low
+                    if self.audio_features['energy'] < self.config.energy_threshold:
+                        continue
+                    
+                    # Transcription
+                    if self.config.enable_transcription:
+                        self._process_transcription(audio_to_process)
+                    
+                    # Collect data
+                    if self.data_collector:
+                        self._collect_audio_data(audio_to_process)
                     
                     # Update session statistics
                     self.session_stats['total_chunks'] += 1
@@ -386,81 +165,6 @@ class AudioAnalyzer:
                 continue
             except Exception as e:
                 print(f"Audio processing error: {e}", file=sys.stderr)
-    
-    def _process_with_vad(self, audio_data: np.ndarray):
-        """Process audio chunk with VAD filtering."""
-        # Get voice probability
-        voice_prob = self.vad.get_voice_probability(audio_data)
-        self.vad_state['voice_probability'] = voice_prob
-        
-        # Check if voice activity detected
-        has_voice = voice_prob > self.config.vad_threshold
-        current_time = time.time()
-        
-        if has_voice:
-            # Voice detected
-            if not self.vad_state['is_speaking']:
-                # Start of speech
-                self.vad_state['is_speaking'] = True
-                self.vad_state['speech_start_time'] = current_time
-                self.vad_state['current_speech_segment'] = []
-                if self.vad_state['silence_start_time']:
-                    silence_duration = current_time - self.vad_state['silence_start_time']
-                    self.vad_state['total_silence_time'] += silence_duration
-            
-            # Add to current speech segment
-            self.vad_state['current_speech_segment'].append(audio_data)
-            
-        else:
-            # No voice detected
-            if self.vad_state['is_speaking']:
-                # End of speech
-                self.vad_state['is_speaking'] = False
-                self.vad_state['silence_start_time'] = current_time
-                
-                if self.vad_state['speech_start_time']:
-                    speech_duration = current_time - self.vad_state['speech_start_time']
-                    
-                    # Only process if speech duration meets minimum threshold
-                    if speech_duration >= self.config.vad_min_speech_duration:
-                        # Combine speech segment
-                        combined_audio = np.concatenate(self.vad_state['current_speech_segment'])
-                        
-                        # Process the complete speech segment
-                        self._process_audio_directly(combined_audio)
-                        
-                        # Update statistics
-                        self.vad_state['total_speech_time'] += speech_duration
-                        self.vad_state['speech_segments'].append({
-                            'start_time': self.vad_state['speech_start_time'],
-                            'duration': speech_duration,
-                            'voice_probability': voice_prob
-                        })
-                
-                # Clear current segment
-                self.vad_state['current_speech_segment'] = []
-        
-        # Also process audio directly if voice probability is above a lower threshold
-        # This ensures we don't miss speech due to VAD filtering
-        if voice_prob > 0.1:  # Very low threshold to catch any potential speech
-            self._process_audio_directly(audio_data)
-    
-    def _process_audio_directly(self, audio_data: np.ndarray):
-        """Process audio chunk directly without VAD filtering."""
-        # Analyze audio features
-        self._analyze_audio_features(audio_data)
-        
-        # Skip processing if energy is too low
-        if self.audio_features['energy'] < self.config.energy_threshold:
-            return
-        
-        # Transcription
-        if self.config.enable_transcription:
-            self._process_transcription(audio_data)
-        
-        # Collect data
-        if self.data_collector:
-            self._collect_audio_data(audio_data)
     
     def _analyze_audio_features(self, audio_chunk: np.ndarray):
         """Extract and analyze audio features for emotion detection."""
@@ -618,17 +322,6 @@ class AudioAnalyzer:
         print(f"    - Speech Rate: {self.audio_features['speech_rate']:.3f} (z-score: {self.audio_features['rate_z_score']:.2f})")
         print(f"    - Silence Ratio: {self.audio_features['silence_ratio']:.2f}")
         
-        # VAD Status
-        if hasattr(self, 'vad_state') and self.vad_state:
-            vad_info = self._get_vad_info()
-            print(f"  VAD Status:")
-            print(f"    - Enabled: {vad_info['enabled']}")
-            print(f"    - Voice Probability: {vad_info['voice_probability']:.3f}")
-            print(f"    - Currently Speaking: {vad_info['is_speaking']}")
-            print(f"    - Speech Segments: {vad_info['speech_segments_count']}")
-        else:
-            print(f"  VAD Status: Disabled (model not loaded)")
-        
         if self.config.enable_sentiment_analysis:
             print(f"  Text Analysis:")
             print(f"    - Sentiment: {self.current_sentiment:.2f} (-1.0 to 1.0)")
@@ -651,32 +344,10 @@ class AudioAnalyzer:
             'confidence': self.current_confidence,
             'audio_features': self.audio_features.copy(),
             'chunk_duration': self.config.chunk_duration,
-            'sample_rate': self.config.sample_rate,
-            'vad_info': self._get_vad_info()
+            'sample_rate': self.config.sample_rate
         }
         
         self.data_collector.add_audio_data(data_point)
-    
-    def _get_vad_info(self) -> Dict[str, Any]:
-        """Get VAD information for data collection."""
-        if not hasattr(self, 'vad_state') or not self.vad_state:
-            return {
-                'enabled': False,
-                'voice_probability': 0.0,
-                'is_speaking': False,
-                'total_speech_time': 0.0,
-                'total_silence_time': 0.0,
-                'speech_segments_count': 0
-            }
-        
-        return {
-            'enabled': self.config.enable_vad,
-            'voice_probability': self.vad_state.get('voice_probability', 0.0),
-            'is_speaking': self.vad_state.get('is_speaking', False),
-            'total_speech_time': self.vad_state.get('total_speech_time', 0.0),
-            'total_silence_time': self.vad_state.get('total_silence_time', 0.0),
-            'speech_segments_count': len(self.vad_state.get('speech_segments', []))
-        }
     
     def start(self):
         """Start the audio analysis system."""

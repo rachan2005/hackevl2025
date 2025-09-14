@@ -20,7 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-/Users/nihaalyk/Documents/GitHub/hackevl2025/app
+
 # Virtual environments
 .env
 .venv

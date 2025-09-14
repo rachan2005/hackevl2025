@@ -75,13 +75,6 @@ class AudioConfig:
     enable_emotion_detection: bool = True
     enable_sentiment_analysis: bool = True
     enable_prosody_analysis: bool = True
-    enable_vad: bool = True
-    
-    # Voice Activity Detection (VAD) settings
-    vad_threshold: float = 0.2  # Lowered from 0.5 for better sensitivity to normal speech
-    vad_min_speech_duration: float = 0.15  # Reduced from 0.25 for shorter utterances
-    vad_min_silence_duration: float = 0.3  # Reduced from 0.5 for faster response
-    vad_speech_pad: float = 0.05  # Reduced padding for more precise detection
     
     # Whisper parameters
     beam_size: int = 1
@@ -115,32 +108,12 @@ class OutputConfig:
 
 
 @dataclass
-class DatabaseConfig:
-    """Configuration for database persistence (MongoDB)."""
-    
-    enabled: bool = False
-    uri: Optional[str] = None
-    database: str = "behavioral_analyzer"
-    combined_collection: str = "combined_data"
-    sessions_collection: str = "sessions"
-    
-    def __post_init__(self):
-        # Allow environment variable overrides
-        self.enabled = bool(int(os.getenv("BA_DB_ENABLED", "0"))) if os.getenv("BA_DB_ENABLED") is not None else self.enabled
-        self.uri = os.getenv("BA_MONGO_URI", self.uri)
-        self.database = os.getenv("BA_MONGO_DB", self.database)
-        self.combined_collection = os.getenv("BA_MONGO_COMBINED_COLL", self.combined_collection)
-        self.sessions_collection = os.getenv("BA_MONGO_SESSIONS_COLL", self.sessions_collection)
-
-
-@dataclass
 class Config:
     """Main configuration class that combines all component configurations."""
     
     video: VideoConfig = field(default_factory=VideoConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
-    db: DatabaseConfig = field(default_factory=DatabaseConfig)
     
     # Global settings
     session_name: Optional[str] = None
@@ -164,7 +137,6 @@ class Config:
             'video': self.video.__dict__,
             'audio': self.audio.__dict__,
             'output': self.output.__dict__,
-            'db': self.db.__dict__,
             'session_name': self.session_name,
             'enable_logging': self.enable_logging,
             'log_level': self.log_level
@@ -189,10 +161,6 @@ class Config:
             for key, value in config_dict['output'].items():
                 if hasattr(config.output, key):
                     setattr(config.output, key, value)
-        if 'db' in config_dict:
-            for key, value in config_dict['db'].items():
-                if hasattr(config.db, key):
-                    setattr(config.db, key, value)
         
         if 'session_name' in config_dict:
             config.session_name = config_dict['session_name']
