@@ -1,0 +1,158 @@
+[project]
+name = "behavioral-analyzer"
+version = "1.0.0"
+description = "A comprehensive real-time behavioral analysis system combining video and audio analysis"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "HackEVL 2025", email = "team@hackevl2025.com"}
+]
+keywords = ["behavioral-analysis", "computer-vision", "audio-analysis", "emotion-detection", "attention-tracking"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Multimedia :: Video :: Display",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+]
+
+dependencies = [
+    # Core dependencies
+    "numpy>=1.24.0",
+    "opencv-python>=4.8.0",
+    "mediapipe>=0.10.0",
+    "scipy>=1.10.0",
+    "pillow>=9.5.0",
+    
+    # Machine Learning
+    "tensorflow-macos>=2.13.0",
+    "tf-keras>=2.13.0",
+    "deepface>=0.0.79",
+    "ultralytics>=8.0.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    
+    # Audio processing
+    "sounddevice>=0.4.6",
+    "librosa>=0.10.0",
+    "faster-whisper>=0.9.0",
+    "textblob>=0.17.1",
+    "torchaudio>=2.0.0",
+    "onnxruntime>=1.16.0",
+    "silero-vad>=4.0.0",
+    
+    # Data handling
+    "pandas>=2.0.0",
+    "matplotlib>=3.7.0",
+    
+    # Web UI
+    "flask>=2.3.0",
+    "flask-socketio>=5.3.0",
+    "eventlet>=0.33.0",
+    
+    # Utilities
+    "certifi>=2025.6.15",
+    "cffi>=1.17.1",
+    "pycparser>=2.22",
+    "wheel>=0.45.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+
+docs = [
+    "sphinx>=6.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+    "myst-parser>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/hackevl2025/behavioral-analyzer"
+Documentation = "https://behavioral-analyzer.readthedocs.io"
+Repository = "https://github.com/hackevl2025/behavioral-analyzer.git"
+Issues = "https://github.com/hackevl2025/behavioral-analyzer/issues"
+
+[project.scripts]
+behavioral-analyzer = "behavioral_analyzer.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["behavioral_analyzer"]
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=behavioral_analyzer",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "cv2.*",
+    "mediapipe.*",
+    "deepface.*",
+    "sounddevice.*",
+    "librosa.*",
+    "faster_whisper.*",
+    "textblob.*",
+    "scipy.*",
+    "matplotlib.*",
+    "pandas.*",
+    "tensorflow.*",
+    "tf_keras.*",
+]
+ignore_missing_imports = true

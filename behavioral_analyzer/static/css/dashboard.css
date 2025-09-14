@@ -1,0 +1,257 @@
+/* Behavioral Analyzer Dashboard Styles */
+
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-brand {
+    font-weight: 600;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border-radius: 0.5rem;
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+/* Video Container */
+.video-container {
+    position: relative;
+    background-color: #000;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-placeholder {
+    text-align: center;
+    color: #6c757d;
+}
+
+#video-feed {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+}
+
+/* Status Indicators */
+.badge {
+    font-size: 0.75rem;
+}
+
+#connection-status .fas {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Emotion Colors */
+.emotion-happy { color: #28a745 !important; }
+.emotion-sad { color: #6f42c1 !important; }
+.emotion-angry { color: #dc3545 !important; }
+.emotion-fear { color: #fd7e14 !important; }
+.emotion-surprise { color: #ffc107 !important; }
+.emotion-disgust { color: #20c997 !important; }
+.emotion-neutral { color: #6c757d !important; }
+
+/* Attention Colors */
+.attention-focused { color: #28a745 !important; }
+.attention-partial { color: #ffc107 !important; }
+.attention-distracted { color: #dc3545 !important; }
+
+/* Posture Colors */
+.posture-excellent { color: #28a745 !important; }
+.posture-good { color: #20c997 !important; }
+.posture-fair { color: #ffc107 !important; }
+.posture-poor { color: #dc3545 !important; }
+
+/* Transcription Box */
+.transcription-box {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    min-height: 60px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* Object List */
+.object-list {
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.object-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.object-item:last-child {
+    border-bottom: none;
+}
+
+.object-name {
+    font-weight: 500;
+}
+
+.object-confidence {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+/* Progress Bars */
+.progress {
+    height: 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+}
+
+/* Charts */
+.chart-container {
+    position: relative;
+    height: 200px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container-fluid {
+        padding: 0.5rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .video-container {
+        min-height: 200px;
+    }
+    
+    .row.text-center > div {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+}
+
+/* Status Badges */
+.status-online {
+    background-color: #28a745 !important;
+}
+
+.status-offline {
+    background-color: #dc3545 !important;
+}
+
+.status-warning {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+}
+
+/* Metric Cards */
+.metric-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Real-time Updates */
+.updating {
+    position: relative;
+}
+
+.updating::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 123, 255, 0.1);
+    border-radius: 0.375rem;
+    animation: pulse 1s ease-in-out;
+}
