@@ -52,7 +52,9 @@ video/
 demo_results/
 session_*.json
 *.csv
-*.txt
+# Allow requirements.txt files
+!requirements.txt
+!*/requirements.txt
 yolov8*.pt
 *.mp4
 *.avi

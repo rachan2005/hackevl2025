@@ -1,0 +1,46 @@
+# Behavioral Analyzer Requirements
+# Real-time behavioral analysis system combining video and audio analysis
+
+# Core dependencies
+numpy>=1.24.0
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+scipy>=1.10.0
+pillow>=9.5.0
+
+# Machine Learning & AI
+tensorflow-macos>=2.13.0
+tf-keras>=2.13.0
+deepface>=0.0.79
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Audio processing
+sounddevice>=0.4.6
+librosa>=0.10.0
+faster-whisper>=0.9.0
+textblob>=0.17.1
+
+# Data handling and visualization
+pandas>=2.0.0
+matplotlib>=3.7.0
+
+# Web UI (optional)
+flask>=2.3.0
+flask-socketio>=5.3.0
+eventlet>=0.33.0
+
+# Utilities
+certifi>=2025.6.15
+cffi>=1.17.1
+pycparser>=2.22
+wheel>=0.45.1
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# pytest-cov>=4.0.0
+# black>=23.0.0
+# flake8>=6.0.0
+# mypy>=1.0.0
+# pre-commit>=3.0.0
