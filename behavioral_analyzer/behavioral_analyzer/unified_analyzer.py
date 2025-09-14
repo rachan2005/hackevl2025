@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, Tuple
 import numpy as np
 
 from .config import Config
+from .db import MongoPersistence
 from .video_analyzer import VideoAnalyzer
 from .audio_analyzer import AudioAnalyzer
 from .utils import (
@@ -61,6 +62,20 @@ class UnifiedBehavioralAnalyzer:
         self.video_writer = None
         self.recording_start_time = None
         
+        # Optional MongoDB persistence
+        self.mongo: Optional[MongoPersistence] = None
+        if getattr(self.config, 'db', None) and self.config.db.enabled and self.config.db.uri:
+            try:
+                self.mongo = MongoPersistence(
+                    uri=self.config.db.uri,
+                    database=self.config.db.database,
+                    combined_collection=self.config.db.combined_collection,
+                    sessions_collection=self.config.db.sessions_collection,
+                )
+                print("MongoDB persistence enabled")
+            except Exception as e:
+                print(f"MongoDB disabled due to error: {e}")
+
         print("Unified Behavioral Analyzer initialized successfully")
     
     def start_analysis(self, camera_id: Optional[int] = None) -> bool:
@@ -220,6 +235,17 @@ class UnifiedBehavioralAnalyzer:
         }
         
         self.data_collector.add_combined_data(combined_data)
+        # Persist to Mongo if enabled
+        if self.mongo is not None:
+            try:
+                session_name = getattr(self.config, 'session_name', None)
+                doc = {
+                    'session_name': session_name,
+                    **combined_data,
+                }
+                self.mongo.insert_combined(doc)
+            except Exception as e:
+                print(f"Mongo combined insert error: {e}")
     
     def _add_unified_overlay(self, frame: np.ndarray):
         """Add unified analysis overlay to frame."""
@@ -445,7 +471,16 @@ class UnifiedBehavioralAnalyzer:
             self.toggle_recording(None)
         
         # Save session data
-        self.save_session_data()
+        saved_file = self.save_session_data()
+        
+        # Persist session summary to Mongo
+        if self.mongo is not None:
+            try:
+                summary = self.get_session_summary()
+                summary['artifacts'] = {'json_file': saved_file}
+                self.mongo.insert_session(summary)
+            except Exception as e:
+                print(f"Mongo session insert error: {e}")
         
         print("Unified analysis stopped")
     

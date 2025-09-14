@@ -6,6 +6,7 @@ of the behavioral analysis system.
 """
 
 import time
+import os
 import json
 import datetime
 import platform
