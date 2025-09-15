@@ -9,6 +9,7 @@ import asyncio
 from aiohttp import web, web_request
 from aiohttp.web_response import Response
 from core.session import get_session
+from core.tool_handler import execute_tool
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +198,34 @@ async def health_check_handler(request: web_request.Request) -> Response:
         "timestamp": asyncio.get_event_loop().time()
     })
 
+async def execute_tool_handler(request: web_request.Request) -> Response:
+    """Handle tool execution requests"""
+    try:
+        data = await request.json()
+        tool_name = data.get('tool_name')
+        params = data.get('params', {})
+        session_id = data.get('session_id')
+        
+        if not tool_name:
+            return web.json_response({
+                "success": False,
+                "error": "tool_name is required"
+            }, status=400)
+        
+        logger.info(f"Executing tool: {tool_name} with params: {params}")
+        
+        # Execute the tool
+        result = await execute_tool(tool_name, params, session_id)
+        
+        return web.json_response(result)
+        
+    except Exception as e:
+        logger.error(f"Error executing tool: {e}")
+        return web.json_response({
+            "success": False,
+            "error": f"Tool execution failed: {str(e)}"
+        }, status=500)
+
 def create_api_app() -> web.Application:
     """Create the HTTP API application"""
     app = web.Application()
@@ -216,6 +245,7 @@ def create_api_app() -> web.Application:
     app.router.add_post('/api/sessions/{session_id}/behavioral-features', add_behavioral_feature_handler)
     app.router.add_get('/api/sessions/{session_id}/insights', get_insights_handler)
     app.router.add_get('/api/sessions/{session_id}/context', get_context_handler)
+    app.router.add_post('/api/execute-tool', execute_tool_handler)
     app.router.add_get('/health', health_check_handler)
     
     return app
@@ -235,6 +265,7 @@ async def start_api_server(port: int = 8082):
     logger.info("  POST /api/sessions/{session_id}/behavioral-features")
     logger.info("  GET  /api/sessions/{session_id}/insights")
     logger.info("  GET  /api/sessions/{session_id}/context")
+    logger.info("  POST /api/execute-tool")
     logger.info("  GET  /health")
     
     return runner

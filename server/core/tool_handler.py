@@ -1,6 +1,6 @@
 
 """
-Tool execution and handling for ADK-based interview system
+Tool execution and handling for ADK-based conversational system
 """
 
 import logging
@@ -10,6 +10,8 @@ import asyncio
 from typing import Dict, Any, Optional
 from config.config import CLOUD_FUNCTIONS
 from urllib.parse import urlencode
+from core.music_agent import MusicRecommendationAgent
+from config.music_agent_config import music_config
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,10 @@ async def execute_tool(tool_name: str, params: Dict[str, Any], session_id: Optio
     # Handle ADK-specific tools
     if tool_name in ["timestamp_qa_pair", "signal_state_agent", "detect_user_response"]:
         return await execute_adk_tool(tool_name, params, session_id)
+    
+    # Handle music recommendation tools
+    if tool_name in ["get_music_recommendations", "get_trending_content"]:
+        return await execute_music_tool(tool_name, params, session_id)
     
     # Handle external cloud function tools
     try:
@@ -168,4 +174,78 @@ async def start_state_agent_processor(session_id: str):
     
     # Start the processor task
     session.state_agent_processor = asyncio.create_task(process_state_agent_signals())
-    logger.info(f"Started state agent processor for session {session_id}") 
+    logger.info(f"Started state agent processor for session {session_id}")
+
+
+async def execute_music_tool(tool_name: str, params: Dict[str, Any], session_id: Optional[str] = None) -> Dict[str, Any]:
+    """Execute music recommendation tools"""
+    
+    try:
+        # Check if music agent is configured
+        if not music_config.is_configured():
+            missing_configs = music_config.get_missing_configs()
+            return {
+                "error": f"Music agent not configured. Missing: {', '.join(missing_configs)}",
+                "message": "Please configure YouTube and Spotify API keys to use music recommendations."
+            }
+        
+        # Initialize music agent
+        music_agent = MusicRecommendationAgent(
+            youtube_api_key=music_config.youtube_api_key,
+            spotify_client_id=music_config.spotify_client_id,
+            spotify_client_secret=music_config.spotify_client_secret
+        )
+        
+        if tool_name == "get_music_recommendations":
+            user_input = params.get("user_input", "")
+            behavioral_data = params.get("behavioral_data")
+            
+            if not user_input:
+                return {"error": "user_input parameter is required"}
+            
+            logger.info(f"🎵 Getting music recommendations for: {user_input[:50]}...")
+            
+            # Get recommendations
+            recommendations = await music_agent.get_recommendations(user_input, behavioral_data)
+            
+            # Format for AI context
+            formatted_recommendations = music_agent.format_recommendations_for_ai(recommendations)
+            
+            return {
+                "success": True,
+                "recommendations": formatted_recommendations,
+                "intent_type": recommendations.intent_analysis.intent_type.value if recommendations.intent_analysis else "unknown",
+                "mood": recommendations.intent_analysis.mood.value if recommendations.intent_analysis else "unknown",
+                "confidence": recommendations.intent_analysis.confidence if recommendations.intent_analysis else 0.0,
+                "music_count": len(recommendations.music_recommendations),
+                "video_count": len(recommendations.video_recommendations)
+            }
+        
+        elif tool_name == "get_trending_content":
+            content_type = params.get("content_type", "both")
+            
+            logger.info(f"🔥 Getting trending {content_type} content")
+            
+            # Get trending content
+            recommendations = await music_agent.get_trending_content(content_type)
+            
+            # Format for AI context
+            formatted_recommendations = music_agent.format_recommendations_for_ai(recommendations)
+            
+            return {
+                "success": True,
+                "recommendations": formatted_recommendations,
+                "content_type": content_type,
+                "music_count": len(recommendations.music_recommendations),
+                "video_count": len(recommendations.video_recommendations)
+            }
+        
+        else:
+            return {"error": f"Unknown music tool: {tool_name}"}
+            
+    except Exception as e:
+        logger.error(f"Error executing music tool {tool_name}: {e}")
+        return {
+            "error": f"Error executing music tool: {str(e)}",
+            "message": "Sorry, I couldn't get music recommendations right now."
+        } 
