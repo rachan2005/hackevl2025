@@ -32,8 +32,28 @@
             font-size: 0.9rem;
             color: #6c757d;
         }
+        .calibration-panel {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .calibration-progress {
+            background-color: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .calibration-progress-bar {
+            background-color: #28a745;
+            height: 100%;
+            transition: width 0.3s ease;
+        }
     </style>
 </head>
+
 <body>
     <nav class="navbar navbar-dark bg-dark">
         <div class="container-fluid">
@@ -162,13 +182,33 @@
 
         <!-- Raw Data Display -->
         <div class="row">
-            <div class="col-12">
+            <div class="col-8">
                 <div class="card">
                     <div class="card-header">
                         <h6><i class="fas fa-code"></i> Raw Data <small class="text-muted">(Last Update: <span id="last-update">Never</span>)</small></h6>
                     </div>
                     <div class="card-body">
                         <pre id="raw-data" class="small text-muted">No data available</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="fas fa-cog"></i> Calibration Status</h6>
+                    </div>
+                    <div class="card-body">
+                        <!-- Calibration Panel -->
+                        <div class="calibration-panel" id="calibration-panel" style="display: block;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small><i class="fas fa-cog fa-spin" id="calibration-icon"></i> <span id="calibration-label">Calibrating</span></small>
+                                <small id="calibration-timer">10.0s</small>
+                            </div>
+                            <div class="calibration-progress">
+                                <div class="calibration-progress-bar" id="calibration-progress" style="width: 0%"></div>
+                            </div>
+                            <small id="calibration-status">Establishing baseline...</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -215,6 +255,7 @@
                     const response = await fetch('/api/data');
                     const data = await response.json();
                     this.updateDashboard(data);
+                    this.updateCalibration(data.calibration || {});
                     this.updateStatus('running', 'Connected - Receiving data');
                 } catch (error) {
                     console.error('Error fetching data:', error);
@@ -232,6 +273,14 @@
                     document.getElementById('total-blinks').textContent = data.video.total_blinks || 0;
                     document.getElementById('fatigue-level').textContent = data.video.fatigue_level || 'Normal';
                     document.getElementById('video-fps').textContent = Math.round(data.video.fps || 0);
+                    
+                    // Show calibrated values if available
+                    if (data.video.blink_rate_calibrated) {
+                        const calibrated = data.video.blink_rate_calibrated;
+                        const blinkElement = document.getElementById('blink-rate');
+                        blinkElement.innerHTML = `${Math.round(calibrated.raw)} <small class="text-muted">(${calibrated.deviation_percent > 0 ? '+' : ''}${calibrated.deviation_percent.toFixed(1)}%)</small>`;
+                        blinkElement.title = `Baseline: ${calibrated.baseline.toFixed(1)} - ${calibrated.status}`;
+                    }
                 }
 
                 // Update audio data
@@ -240,6 +289,14 @@
                     document.getElementById('transcription').textContent = transcription;
                     document.getElementById('audio-emotion').textContent = data.audio.emotion || 'neutral';
                     document.getElementById('sentiment-score').textContent = (data.audio.sentiment || 0).toFixed(1);
+                    
+                    // Show calibrated sentiment if available
+                    if (data.audio.sentiment_calibrated) {
+                        const calibrated = data.audio.sentiment_calibrated;
+                        const sentimentElement = document.getElementById('sentiment-score');
+                        sentimentElement.innerHTML = `${calibrated.raw.toFixed(1)} <small class="text-muted">(${calibrated.deviation_percent > 0 ? '+' : ''}${calibrated.deviation_percent.toFixed(1)}%)</small>`;
+                        sentimentElement.title = `Baseline: ${calibrated.baseline.toFixed(2)} - ${calibrated.status}`;
+                    }
                 }
 
                 // Update session stats
@@ -261,6 +318,48 @@
                 // Update raw data display
                 document.getElementById('raw-data').textContent = JSON.stringify(data, null, 2);
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            }
+
+            updateCalibration(calibrationData) {
+                const panel = document.getElementById('calibration-panel');
+                const progress = document.getElementById('calibration-progress');
+                const timer = document.getElementById('calibration-timer');
+                const status = document.getElementById('calibration-status');
+                const icon = document.getElementById('calibration-icon');
+                const label = document.getElementById('calibration-label');
+                
+                console.log('Calibration data:', calibrationData); // Debug log
+                
+                if (calibrationData.is_calibrating) {
+                    panel.style.display = 'block';
+                    panel.style.background = 'linear-gradient(135deg, #007bff, #0056b3)';
+                    progress.style.width = (calibrationData.progress_percent || 0) + '%';
+                    timer.textContent = (calibrationData.time_remaining || 0).toFixed(1) + 's';
+                    status.textContent = calibrationData.status || 'Establishing baseline...';
+                    icon.className = 'fas fa-cog fa-spin';
+                    icon.style.display = 'inline-block';
+                    label.textContent = 'Calibrating';
+                } else if (calibrationData.progress_percent === 100 || calibrationData.status === 'Complete') {
+                    // Show completed calibration
+                    panel.style.display = 'block';
+                    panel.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+                    progress.style.width = '100%';
+                    timer.textContent = 'Done';
+                    status.innerHTML = '<i class="fas fa-check"></i> Calibrated - Showing calibrated values';
+                    icon.className = 'fas fa-check';
+                    icon.style.display = 'inline-block';
+                    label.textContent = 'Calibrated';
+                } else {
+                    // Show waiting state
+                    panel.style.display = 'block';
+                    panel.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
+                    progress.style.width = '0%';
+                    timer.textContent = 'Waiting';
+                    status.textContent = calibrationData.status || 'Waiting for analyzer...';
+                    icon.className = 'fas fa-clock';
+                    icon.style.display = 'inline-block';
+                    label.textContent = 'Waiting';
+                }
             }
 
             updateStatus(status, message) {

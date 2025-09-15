@@ -11,10 +11,12 @@ import os
 import cv2
 import time
 import platform
+import json
 from typing import Optional
 
 from . import UnifiedBehavioralAnalyzer, Config
 from .config import VideoConfig, AudioConfig, OutputConfig
+from .calibration import CalibrationManager
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -251,6 +253,9 @@ def main():
         # Initialize analyzer
         analyzer = UnifiedBehavioralAnalyzer(config)
         
+        # Initialize calibration manager (10-second auto-calibration)
+        calibration_manager = CalibrationManager(calibration_duration=10.0)
+        
         # Start analysis
         if not analyzer.start_analysis():
             print("Failed to start analysis")
@@ -258,6 +263,9 @@ def main():
         
         # Print usage instructions
         print_usage_instructions()
+        
+        # Start calibration automatically
+        calibration_manager.start_calibration()
         
         # Main processing loop
         consecutive_failures = 0
@@ -335,12 +343,27 @@ def main():
                                 'detections': detections or []
                             }
                         
+                        # Add calibration data during calibration phase
+                        if calibration_manager.is_calibrating:
+                            calibration_manager.add_calibration_sample(export_data)
+                            print(f"Added calibration sample. Total samples: {len(calibration_manager.calibration_data)}")
+                        
+                        # Get calibration progress
+                        calibration_progress = calibration_manager.get_calibration_progress()
+                        export_data['calibration'] = calibration_progress
+                        print(f"Calibration progress: {calibration_progress}")
+                        
+                        # Apply calibration if complete
+                        if calibration_manager.calibration_complete:
+                            export_data = calibration_manager.calculate_calibrated_values(export_data)
+                            print("Applied calibrated values to export data")
+                        
                         # Write to file
                         os.makedirs(os.path.dirname(data_export_file), exist_ok=True)
                         with open(data_export_file, 'w') as f:
-                            import json
                             json.dump(export_data, f, indent=2)
                         
+                        print(f"Data exported to {data_export_file} with calibration: {export_data.get('calibration', {}).get('status', 'No status')}")
                         last_export_time = current_time
                         
                     except Exception as e:

@@ -55,6 +55,30 @@ class MinimalWebUI:
                 'file_exists': file_exists,
                 'timestamp': time.time()
             })
+
+        @self.app.route('/api/calibration')
+        def get_calibration():
+            """Get detailed calibration information."""
+            try:
+                if os.path.exists(self.data_file):
+                    with open(self.data_file, 'r') as f:
+                        data = json.load(f)
+                    
+                    calibration_data = data.get('calibration', {})
+                    return jsonify(calibration_data)
+                else:
+                    return jsonify({
+                        'is_calibrating': False,
+                        'progress_percent': 0.0,
+                        'status': 'No data available'
+                    })
+            except Exception as e:
+                return jsonify({
+                    'error': str(e),
+                    'is_calibrating': False,
+                    'progress_percent': 0.0,
+                    'status': 'Error'
+                })
     
     def _data_reader_worker(self):
         """Worker thread that reads data from the analyzer output file."""
@@ -67,11 +91,18 @@ class MinimalWebUI:
                     with open(self.data_file, 'r') as f:
                         file_data = json.load(f)
                     
+                    # Debug: Log calibration data
+                    if 'calibration' in file_data:
+                        print(f"Calibration data found: {file_data['calibration']}")
+                    else:
+                        print("No calibration data in file")
+                    
                     # Update latest data
                     self.latest_data = file_data
                     print(f"Data updated: {datetime.now().strftime('%H:%M:%S')}")
                 else:
                     # Create dummy data if file doesn't exist
+                    print(f"Data file does not exist: {self.data_file}")
                     self.latest_data = {
                         'video': {
                             'emotion': 'Waiting for analyzer...',
@@ -94,6 +125,11 @@ class MinimalWebUI:
                         'session_stats': {
                             'session_duration': 0,
                             'timestamp': time.time()
+                        },
+                        'calibration': {
+                            'is_calibrating': False,
+                            'progress_percent': 0.0,
+                            'status': 'Waiting for analyzer...'
                         }
                     }
                 
