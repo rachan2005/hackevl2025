@@ -52,7 +52,7 @@ async def main() -> None:
             ping_interval=30,
             ping_timeout=10,
         ):
-            logger.info(f"Running ADK interview system:")
+            logger.info(f"Running ADK conversational agent system:")
             logger.info(f"  WebSocket server on 0.0.0.0:{websocket_port}")
             logger.info(f"  HTTP API server on 0.0.0.0:{api_port}")
             await asyncio.Future()  # run forever

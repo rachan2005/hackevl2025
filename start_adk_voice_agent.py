@@ -20,7 +20,7 @@ def run_adk_voice_agent():
     os.chdir(server_dir)
     
     # Run the ADK voice agent
-    cmd = [sys.executable, "server.py"]
+    cmd = ["uv", "run", "python", "server.py"]
     
     try:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

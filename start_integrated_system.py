@@ -26,7 +26,7 @@ class IntegratedSystem:
         
         # Run the behavioral analyzer with API enabled
         cmd = [
-            sys.executable, "-m", "behavioral_analyzer",
+            "uv", "run", "python", "behavioral_analyzer/main.py",
             "--enable-api",
             "--api-port", "8083"
         ]
@@ -54,7 +54,7 @@ class IntegratedSystem:
         os.chdir(server_dir)
         
         # Run the ADK voice agent
-        cmd = [sys.executable, "server.py"]
+        cmd = ["uv", "run", "python", "server.py"]
         
         try:
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -69,6 +69,31 @@ class IntegratedSystem:
             
         except Exception as e:
             print(f"❌ Error running ADK voice agent: {e}")
+    
+    def run_client_web_server(self):
+        """Run the client web server"""
+        print("🌐 Starting Client Web Server...")
+        
+        # Change to client directory
+        client_dir = Path(__file__).parent / "client"
+        os.chdir(client_dir)
+        
+        # Run the web server
+        cmd = ["python3", "-m", "http.server", "8080"]
+        
+        try:
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.processes.append(("Client Web Server", process))
+            
+            # Stream output
+            for line in iter(process.stdout.readline, ''):
+                if self.running:
+                    print(f"[Client Web Server] {line.rstrip()}")
+                else:
+                    break
+            
+        except Exception as e:
+            print(f"❌ Error running client web server: {e}")
     
     def signal_handler(self, signum, frame):
         """Handle shutdown signals"""
@@ -99,9 +124,10 @@ class IntegratedSystem:
         
         print("🎯 Starting Integrated ADK Voice Agent + Behavioral Analyzer System")
         print("=" * 70)
-        print("This will start both systems:")
+        print("This will start all three systems:")
         print("1. Behavioral Analyzer (API server on port 8083)")
         print("2. ADK Voice Agent (WebSocket on port 8081, HTTP API on port 8082)")
+        print("3. Client Web UI (Web interface on port 8080)")
         print("=" * 70)
         print("Press Ctrl+C to stop both systems")
         print()
@@ -113,6 +139,13 @@ class IntegratedSystem:
             
             # Wait a moment for the analyzer to start
             time.sleep(3)
+            
+            # Start client web server in a separate thread
+            client_thread = threading.Thread(target=self.run_client_web_server, daemon=True)
+            client_thread.start()
+            
+            # Wait a moment for the client server to start
+            time.sleep(2)
             
             # Start ADK voice agent in the main thread
             self.run_adk_voice_agent()

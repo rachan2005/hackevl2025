@@ -21,7 +21,7 @@ def run_behavioral_analyzer():
     
     # Run the behavioral analyzer with API enabled
     cmd = [
-        sys.executable, "-m", "behavioral_analyzer",
+        "uv", "run", "python", "behavioral_analyzer/main.py",
         "--enable-api",
         "--api-port", "8083"
     ]

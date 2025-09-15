@@ -8,6 +8,7 @@ import json
 import asyncio
 import base64
 import traceback
+import re
 import time
 from typing import Any, Optional
 from google.genai import types
@@ -31,7 +32,14 @@ async def get_conversation_context_for_ai(session: SessionState) -> str:
             if conv_context.get("conversation_history"):
                 context_parts.append("CONVERSATION HISTORY:")
                 for item in conv_context["conversation_history"][-5:]:  # Last 5 items
-                    context_parts.append(f"- {item['type'].upper()}: {item['content']} (at {item['timestamp']})")
+                    # Handle different conversation history item structures
+                    if isinstance(item, dict):
+                        item_type = item.get('type', 'unknown').upper()
+                        item_content = item.get('content', item.get('text', item.get('message', str(item))))
+                        item_timestamp = item.get('timestamp', 'unknown')
+                        context_parts.append(f"- {item_type}: {item_content} (at {item_timestamp})")
+                    else:
+                        context_parts.append(f"- ITEM: {str(item)}")
             
             # Add current state
             if conv_context.get("current_question"):
@@ -73,6 +81,55 @@ async def get_conversation_context_for_ai(session: SessionState) -> str:
                     else:
                         context_parts.append(f"  ⏳ Behavioral analysis in progress...")
         
+        # Add last user response behavioral data
+        if session.shared_state.get("last_user_response"):
+            last_response = session.shared_state["last_user_response"]
+            context_parts.append("LAST USER RESPONSE BEHAVIORAL ANALYSIS:")
+            context_parts.append(f"- User said: {last_response['user_input']}")
+            context_parts.append(f"- 🧠 Behavioral Insights: {last_response['behavioral_insights']}")
+            context_parts.append(f"- 📊 Confidence: {last_response['confidence']:.2f}")
+            context_parts.append(f"- Features analyzed: {last_response['features_count']}")
+        
+        # Add current behavioral data with intelligent feature selection
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as http_session:
+                async with http_session.get("http://localhost:8083/api/behavioral-data") as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get('success') and data.get('data'):
+                            behavioral_data = data['data']
+                            
+                            # Determine which features to include based on conversation context
+                            feature_type = _determine_behavioral_feature_type(session)
+                            
+                            if feature_type == "video":
+                                context_parts.append("CURRENT VIDEO BEHAVIORAL DATA:")
+                                context_parts.append(f"- Emotion: {behavioral_data.get('emotion', 'unknown')}")
+                                context_parts.append(f"- Attention: {behavioral_data.get('attention', 'unknown')}")
+                                context_parts.append(f"- Fatigue: {behavioral_data.get('fatigue', 'unknown')}")
+                                context_parts.append(f"- Movement: {behavioral_data.get('movement', 'unknown')}")
+                                context_parts.append(f"- Posture: {behavioral_data.get('posture', 'unknown')}")
+                            elif feature_type == "audio":
+                                context_parts.append("CURRENT AUDIO BEHAVIORAL DATA:")
+                                if behavioral_data.get('transcription'):
+                                    context_parts.append(f"- Recent Speech: {behavioral_data['transcription']}")
+                                if behavioral_data.get('sentiment') is not None:
+                                    context_parts.append(f"- Sentiment: {behavioral_data['sentiment']}")
+                                context_parts.append(f"- Speech Confidence: {behavioral_data.get('confidence', 'unknown')}")
+                            else:  # both
+                                context_parts.append("CURRENT BEHAVIORAL DATA:")
+                                context_parts.append(f"- Emotion: {behavioral_data.get('emotion', 'unknown')}")
+                                context_parts.append(f"- Attention: {behavioral_data.get('attention', 'unknown')}")
+                                context_parts.append(f"- Fatigue: {behavioral_data.get('fatigue', 'unknown')}")
+                                context_parts.append(f"- Movement: {behavioral_data.get('movement', 'unknown')}")
+                                if behavioral_data.get('transcription'):
+                                    context_parts.append(f"- Recent Speech: {behavioral_data['transcription']}")
+                                if behavioral_data.get('sentiment') is not None:
+                                    context_parts.append(f"- Sentiment: {behavioral_data['sentiment']}")
+        except Exception as e:
+            logger.warning(f"Could not fetch current behavioral data: {e}")
+        
         # Add shared state information
         if session.shared_state:
             context_parts.append("SHARED STATE:")
@@ -80,7 +137,9 @@ async def get_conversation_context_for_ai(session: SessionState) -> str:
                 if key not in ["session_id", "start_time", "last_update"]:
                     context_parts.append(f"- {key}: {value}")
         
-        return "\n".join(context_parts) if context_parts else "No context available"
+        context_result = "\n".join(context_parts) if context_parts else "No context available"
+        logger.info(f"Generated context for AI: {context_result[:200]}...")  # Log first 200 chars
+        return context_result
     
     except Exception as e:
         logger.error(f"Error getting conversation context: {e}")
@@ -226,11 +285,15 @@ async def handle_client_messages(websocket: Any, session: SessionState) -> None:
                     elif data["type"] == "text":
                         logger.info("Sending text to Gemini...")
                         
+                        # Process user input through conversational agent to trigger behavioral capture
+                        user_text = data.get('data')
+                        if session.conversational_agent:
+                            await session.conversational_agent.process_user_input(user_text, "text")
+                        
                         # Get current shared state and conversation context
                         context_info = await get_conversation_context_for_ai(session)
                         
                         # Send text with context
-                        user_text = data.get('data')
                         message_with_context = f"[CONTEXT: {context_info}]\n\nUser: {user_text}"
                         await session.genai_session.send(input=message_with_context, end_of_turn=True)
                         logger.info("Text with context sent to Gemini")
@@ -477,4 +540,65 @@ async def handle_client(websocket: Any) -> None:
             })
     finally:
         # Always ensure cleanup happens
-        await cleanup_session(session, session_id) 
+        await cleanup_session(session, session_id)
+
+
+def _determine_behavioral_feature_type(session) -> str:
+    """
+    Determine which behavioral features to include based on conversation context.
+    
+    Returns:
+        "video" - for visual/seeing questions
+        "audio" - for tone/voice questions  
+        "both" - for general questions
+    """
+    try:
+        # Get recent conversation history
+        if not session.conversation_history:
+            return "both"
+        
+        # Look at the last few messages to understand context
+        recent_messages = session.conversation_history[-3:] if len(session.conversation_history) >= 3 else session.conversation_history
+        
+        # Combine recent messages for analysis
+        recent_text = " ".join([
+            str(msg.get('content', msg.get('text', msg.get('message', str(msg)))))
+            for msg in recent_messages
+        ]).lower()
+        
+        # Video-related keywords
+        video_keywords = [
+            'see', 'look', 'visual', 'appearance', 'face', 'expression', 'emotion',
+            'posture', 'movement', 'attention', 'fatigue', 'tired', 'alert',
+            'what do you see', 'can you see', 'how do i look', 'my face',
+            'my expression', 'my posture', 'my movement'
+        ]
+        
+        # Audio-related keywords  
+        audio_keywords = [
+            'tone', 'voice', 'sound', 'speak', 'say', 'hear', 'listen',
+            'sentiment', 'mood', 'how do i sound', 'my tone', 'my voice',
+            'what do you hear', 'can you hear', 'my speech', 'my words',
+            'how am i speaking', 'my pronunciation'
+        ]
+        
+        # Check for video-related questions
+        video_score = sum(1 for keyword in video_keywords if keyword in recent_text)
+        
+        # Check for audio-related questions
+        audio_score = sum(1 for keyword in audio_keywords if keyword in recent_text)
+        
+        # Determine feature type based on scores
+        if video_score > audio_score and video_score > 0:
+            logger.info(f"🎥 Using VIDEO features (score: {video_score})")
+            return "video"
+        elif audio_score > video_score and audio_score > 0:
+            logger.info(f"🎵 Using AUDIO features (score: {audio_score})")
+            return "audio"
+        else:
+            logger.info(f"🔄 Using BOTH features (video: {video_score}, audio: {audio_score})")
+            return "both"
+            
+    except Exception as e:
+        logger.warning(f"Error determining behavioral feature type: {e}")
+        return "both" 

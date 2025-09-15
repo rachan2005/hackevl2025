@@ -1,6 +1,6 @@
 
 """
-Session management for ADK-based interview system
+Session management for ADK-based conversational agent system
 """
 
 from dataclasses import dataclass, field
@@ -57,12 +57,11 @@ def create_session(session_id: str) -> SessionState:
     session.conversational_agent = ConversationalAgent(session_id, session.shared_state)
     
     # Initialize StateAgent with extractor configuration
-    # You can change this to "real" when you want to use your actual extractor
-    extractor_type = "dummy"  # Change to "real" for production
+    # Using real extractor connected to behavioral analyzer API
+    extractor_type = "real"
     extractor_config = {
-        # Add your extractor configuration here when using "real"
-        # "api_endpoint": "https://your-api.com/analyze",
-        # "api_key": "your-api-key"
+        "api_endpoint": "http://localhost:8083",  # Behavioral analyzer API endpoint
+        "api_key": None  # No API key needed for local connection
     }
     session.state_agent = StateAgent(session_id, session.shared_state, extractor_type, extractor_config)
     

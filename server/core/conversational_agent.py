@@ -1,6 +1,6 @@
 
 """
-Conversational Agent for ADK-based interview system
+Conversational Agent for ADK-based conversational system
 Handles natural speech-to-speech conversation with timestamping capabilities
 """
 
@@ -42,6 +42,9 @@ class ConversationalAgent:
         current_time = time.time()
         
         if input_type == "text":
+            # Always capture behavioral data for user responses
+            await self._capture_behavioral_data(input_data, current_time)
+            
             # Determine if this is a question or answer based on context
             if self._is_question(input_data):
                 await self._handle_question(input_data, current_time)
@@ -134,6 +137,19 @@ class ConversationalAgent:
         })
         
         logger.info(f"Answer timestamped and state agent signaled: {timestamp}")
+    
+    async def _capture_behavioral_data(self, user_input: str, timestamp: float):
+        """Capture behavioral data for every user response"""
+        try:
+            # Signal state agent to capture behavioral data
+            await self._signal_state_agent("user_response", {
+                "user_input": user_input,
+                "timestamp": timestamp,
+                "input_type": "text"
+            })
+            logger.info(f"Behavioral data capture triggered for user input: {user_input[:50]}...")
+        except Exception as e:
+            logger.error(f"Error capturing behavioral data: {e}")
     
     async def _handle_qa_pair(self, question: str, answer: str, timestamp: float):
         """Handle a complete question-answer pair with single timestamp"""

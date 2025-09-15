@@ -175,6 +175,7 @@ class BehavioralAPIServer:
         app = web.Application()
         
         # Add CORS middleware
+        @web.middleware
         async def cors_handler(request, handler):
             response = await handler(request)
             response.headers['Access-Control-Allow-Origin'] = '*'

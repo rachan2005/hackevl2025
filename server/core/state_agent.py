@@ -77,6 +77,8 @@ class StateAgent:
             await self._process_answer_timestamp(data, timestamp)
         elif signal_type == "qa_pair_timestamped":
             await self._process_qa_pair_timestamp(data, timestamp)
+        elif signal_type == "user_response":
+            await self._process_user_response(data, timestamp)
         else:
             logger.warning(f"⚠️ Unknown signal type: {signal_type}")
     
@@ -113,6 +115,41 @@ class StateAgent:
         self.shared_state["last_update"] = time.time()
         
         logger.info(f"Generated question insight: {contextual_description}")
+    
+    async def _process_user_response(self, data: Dict[str, Any], signal_timestamp: float):
+        """Process a user response and capture behavioral data"""
+        user_input = data.get("user_input", "")
+        input_timestamp = data.get("timestamp", signal_timestamp)
+        
+        logger.info(f"Processing user response: {user_input[:50]}...")
+        
+        # Capture behavioral features for this user response
+        try:
+            behavioral_features = await self.behavioral_extractor.extract_features_for_timestamp(input_timestamp)
+            
+            # Find additional features around this timestamp
+            relevant_features = self._find_features_around_timestamp(input_timestamp)
+            
+            # Combine all features
+            all_features = behavioral_features + relevant_features
+            
+            # Generate behavioral insights for this response
+            behavioral_insights = self._generate_user_response_description(user_input, all_features)
+            
+            # Update shared state with behavioral data
+            self.shared_state["last_user_response"] = {
+                "user_input": user_input,
+                "timestamp": input_timestamp,
+                "behavioral_insights": behavioral_insights,
+                "features_count": len(all_features),
+                "confidence": self._calculate_correlation_confidence(all_features)
+            }
+            self.shared_state["last_update"] = time.time()
+            
+            logger.info(f"🧠 User response behavioral analysis: {behavioral_insights[:100]}...")
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing user response behavioral data: {e}")
     
     async def _process_answer_timestamp(self, data: Dict[str, Any], signal_timestamp: float):
         """Process an answer timestamp and correlate with behavioral features"""
@@ -201,7 +238,15 @@ class StateAgent:
             relevant_features = self._find_features_around_timestamp(qa_timestamp)
             
             # Combine all features
-            all_features = behavioral_features + relevant_features
+            try:
+                all_features = behavioral_features + relevant_features
+            except TypeError as e:
+                logger.error(f"❌ Error combining features: {e}")
+                logger.error(f"behavioral_features type: {type(behavioral_features)}")
+                logger.error(f"relevant_features type: {type(relevant_features)}")
+                logger.error(f"behavioral_features content: {behavioral_features}")
+                logger.error(f"relevant_features content: {relevant_features}")
+                all_features = behavioral_features  # Fallback to just behavioral features
             
             # Generate behavioral insights
             behavioral_insights = self._generate_qa_pair_description(
@@ -274,40 +319,56 @@ class StateAgent:
         
         for feature_type, type_features in feature_groups.items():
             if feature_type == "facial_expression":
-                expressions = [f.value for f in type_features if f.confidence > 0.5]
+                expressions = [f.value for f in type_features if float(f.confidence) > 0.5]
                 if expressions:
                     descriptions.append(f"Facial expressions showed: {', '.join(set(expressions))}")
             
             elif feature_type == "audio_pitch":
-                pitches = [f.value for f in type_features if f.confidence > 0.5]
+                pitches = [f.value for f in type_features if float(f.confidence) > 0.5]
                 if pitches:
-                    avg_pitch = sum(pitches) / len(pitches)
-                    pitch_desc = "elevated" if avg_pitch > 0.6 else "normal" if avg_pitch > 0.4 else "lowered"
-                    descriptions.append(f"Voice pitch was {pitch_desc} (avg: {avg_pitch:.2f})")
+                    # Handle both numeric and string values
+                    if isinstance(pitches[0], (int, float)):
+                        avg_pitch = sum(pitches) / len(pitches)
+                        pitch_desc = "elevated" if avg_pitch > 0.6 else "normal" if avg_pitch > 0.4 else "lowered"
+                        descriptions.append(f"Voice pitch was {pitch_desc} (avg: {avg_pitch:.2f})")
+                    else:
+                        descriptions.append(f"Voice pitch patterns: {', '.join(set(pitches))}")
             
             elif feature_type == "sentiment":
-                sentiments = [f.value for f in type_features if f.confidence > 0.5]
+                sentiments = [f.value for f in type_features if float(f.confidence) > 0.5]
                 if sentiments:
-                    avg_sentiment = sum(sentiments) / len(sentiments)
-                    sentiment_desc = "positive" if avg_sentiment > 0.1 else "negative" if avg_sentiment < -0.1 else "neutral"
-                    descriptions.append(f"Overall sentiment was {sentiment_desc} ({avg_sentiment:.2f})")
+                    # Handle both numeric and string values
+                    if isinstance(sentiments[0], (int, float)):
+                        avg_sentiment = sum(sentiments) / len(sentiments)
+                        sentiment_desc = "positive" if avg_sentiment > 0.1 else "negative" if avg_sentiment < -0.1 else "neutral"
+                        descriptions.append(f"Overall sentiment was {sentiment_desc} ({avg_sentiment:.2f})")
+                    else:
+                        descriptions.append(f"Sentiment analysis: {', '.join(set(sentiments))}")
             
             elif feature_type == "attention":
-                attention_levels = [f.value for f in type_features if f.confidence > 0.5]
+                attention_levels = [f.value for f in type_features if float(f.confidence) > 0.5]
                 if attention_levels:
-                    avg_attention = sum(attention_levels) / len(attention_levels)
-                    attention_desc = "high" if avg_attention > 0.7 else "moderate" if avg_attention > 0.5 else "low"
-                    descriptions.append(f"Attention level was {attention_desc} ({avg_attention:.2f})")
+                    # Handle both numeric and string values
+                    if isinstance(attention_levels[0], (int, float)):
+                        avg_attention = sum(attention_levels) / len(attention_levels)
+                        attention_desc = "high" if avg_attention > 0.7 else "moderate" if avg_attention > 0.5 else "low"
+                        descriptions.append(f"Attention level was {attention_desc} ({avg_attention:.2f})")
+                    else:
+                        descriptions.append(f"Attention level: {', '.join(set(attention_levels))}")
             
             elif feature_type == "stress":
-                stress_levels = [f.value for f in type_features if f.confidence > 0.5]
+                stress_levels = [f.value for f in type_features if float(f.confidence) > 0.5]
                 if stress_levels:
-                    avg_stress = sum(stress_levels) / len(stress_levels)
-                    stress_desc = "high" if avg_stress > 0.6 else "moderate" if avg_stress > 0.3 else "low"
-                    descriptions.append(f"Stress indicators were {stress_desc} ({avg_stress:.2f})")
+                    # Handle both numeric and string values
+                    if isinstance(stress_levels[0], (int, float)):
+                        avg_stress = sum(stress_levels) / len(stress_levels)
+                        stress_desc = "high" if avg_stress > 0.6 else "moderate" if avg_stress > 0.3 else "low"
+                        descriptions.append(f"Stress indicators were {stress_desc} ({avg_stress:.2f})")
+                    else:
+                        descriptions.append(f"Stress level: {', '.join(set(stress_levels))}")
             
             elif feature_type == "transcription":
-                words = [f.value for f in type_features if f.confidence > 0.5]
+                words = [f.value for f in type_features if float(f.confidence) > 0.5]
                 if words:
                     descriptions.append(f"Key words detected: {', '.join(words[:5])}{'...' if len(words) > 5 else ''}")
         
@@ -315,6 +376,57 @@ class StateAgent:
             return f"During the Q&A exchange, behavioral analysis revealed: {'; '.join(descriptions)}."
         else:
             return f"During the Q&A exchange, behavioral features were detected but with low confidence levels."
+    
+    def _generate_user_response_description(self, user_input: str, features: List[BehavioralFeature]) -> str:
+        """Generate a descriptive contextual analysis for a user response"""
+        if not features:
+            return f"During the user's response '{user_input[:50]}...', no specific behavioral indicators were detected."
+        
+        # Group features by type
+        feature_groups = {}
+        for feature in features:
+            if feature.feature_type not in feature_groups:
+                feature_groups[feature.feature_type] = []
+            feature_groups[feature.feature_type].append(feature)
+        
+        # Build descriptive text
+        descriptions = []
+        
+        for feature_type, type_features in feature_groups.items():
+            if feature_type == "emotion":
+                expressions = [f.value for f in type_features if float(f.confidence) > 0.5]
+                if expressions:
+                    descriptions.append(f"Emotional state: {', '.join(set(expressions))}")
+            
+            elif feature_type == "attention":
+                attention_levels = [f.value for f in type_features if float(f.confidence) > 0.5]
+                if attention_levels:
+                    descriptions.append(f"Attention level: {', '.join(set(attention_levels))}")
+            
+            elif feature_type == "sentiment":
+                sentiments = [f.value for f in type_features if float(f.confidence) > 0.5]
+                if sentiments:
+                    if isinstance(sentiments[0], (int, float)):
+                        avg_sentiment = sum(sentiments) / len(sentiments)
+                        sentiment_desc = "positive" if avg_sentiment > 0.1 else "negative" if avg_sentiment < -0.1 else "neutral"
+                        descriptions.append(f"Sentiment: {sentiment_desc} ({avg_sentiment:.2f})")
+                    else:
+                        descriptions.append(f"Sentiment: {', '.join(set(sentiments))}")
+            
+            elif feature_type == "transcription":
+                words = [f.value for f in type_features if float(f.confidence) > 0.5]
+                if words:
+                    descriptions.append(f"Speech detected: {', '.join(words[:3])}{'...' if len(words) > 3 else ''}")
+            
+            elif feature_type == "fatigue":
+                fatigue_levels = [f.value for f in type_features if float(f.confidence) > 0.5]
+                if fatigue_levels:
+                    descriptions.append(f"Fatigue level: {', '.join(set(fatigue_levels))}")
+        
+        if descriptions:
+            return f"During the user's response '{user_input[:50]}...', behavioral analysis revealed: {'; '.join(descriptions)}."
+        else:
+            return f"During the user's response, behavioral features were detected but with low confidence levels."
     
     def _find_features_around_timestamp(self, target_timestamp: float, window_seconds: float = 5.0) -> List[BehavioralFeature]:
         """Find behavioral features within a time window around the target timestamp"""
@@ -380,8 +492,13 @@ class StateAgent:
             return 0.0
         
         # Average confidence of all features
-        total_confidence = sum(f.confidence for f in features)
-        return total_confidence / len(features)
+        try:
+            total_confidence = sum(float(f.confidence) for f in features)
+            return total_confidence / len(features)
+        except (TypeError, ValueError) as e:
+            logger.error(f"❌ Error calculating confidence: {e}")
+            logger.error(f"Feature confidences: {[f.confidence for f in features]}")
+            return 0.5  # Default confidence
     
     def _get_question_insights(self) -> List[Dict[str, Any]]:
         """Get all question-related insights"""

@@ -56,6 +56,9 @@ dependencies = [
     "cffi>=1.17.1",
     "pycparser>=2.22",
     "wheel>=0.45.1",
+    
+    # API server
+    "aiohttp>=3.8.0",
 ]
 
 [project.optional-dependencies]

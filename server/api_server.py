@@ -1,6 +1,6 @@
 
 """
-HTTP API server for external systems to interact with the ADK interview system
+HTTP API server for external systems to interact with the ADK conversational agent system
 """
 
 import logging
@@ -193,7 +193,7 @@ async def health_check_handler(request: web_request.Request) -> Response:
     """Health check endpoint"""
     return web.json_response({
         "status": "healthy",
-        "service": "ADK Interview System API",
+        "service": "ADK Conversational Agent API",
         "timestamp": asyncio.get_event_loop().time()
     })
 
@@ -202,6 +202,7 @@ def create_api_app() -> web.Application:
     app = web.Application()
     
     # Add CORS middleware
+    @web.middleware
     async def cors_handler(request, handler):
         response = await handler(request)
         response.headers['Access-Control-Allow-Origin'] = '*'

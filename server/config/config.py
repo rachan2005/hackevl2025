@@ -1,6 +1,6 @@
 
 """
-Configuration for ADK-based interview system
+Configuration for ADK-based conversational agent system
 """
 
 import os
@@ -126,7 +126,7 @@ CONFIG = {
             },
             {
                 "name": "timestamp_qa_pair",
-                "description": "Timestamp a complete question-answer pair and signal the state agent",
+                "description": "Timestamp a complete question-answer pair and signal the state agent (use for significant exchanges)",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -136,7 +136,7 @@ CONFIG = {
                         },
                         "answer": {
                             "type": "string",
-                            "description": "The answer that was provided by the interviewee"
+                            "description": "The answer that was provided by the user"
                         }
                     },
                     "required": ["question", "answer"]

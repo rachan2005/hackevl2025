@@ -13,8 +13,8 @@ import time
 import platform
 from typing import Optional
 
-from . import UnifiedBehavioralAnalyzer, Config
-from .config import VideoConfig, AudioConfig, OutputConfig
+from behavioral_analyzer import UnifiedBehavioralAnalyzer, Config
+from behavioral_analyzer.config import VideoConfig, AudioConfig, OutputConfig
 
 
 def parse_arguments() -> argparse.Namespace:

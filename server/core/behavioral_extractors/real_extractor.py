@@ -168,31 +168,40 @@ class RealBehavioralExtractor(BaseBehavioralExtractor):
         try:
             # Emotion feature
             if 'emotion' in data and data['emotion'] != 'unknown':
+                emotion_confidence = data.get('emotion_confidence', 0.8)
+                if isinstance(emotion_confidence, str):
+                    emotion_confidence = 0.8
                 features.append(BehavioralFeature(
                     timestamp=timestamp,
                     feature_type="emotion",
                     value=data['emotion'],
-                    confidence=data.get('emotion_confidence', 0.8),
+                    confidence=float(emotion_confidence),
                     description=f"Facial emotion: {data['emotion']}"
                 ))
             
             # Attention feature
             if 'attention' in data and data['attention'] != 'unknown':
+                attention_score = data.get('attention_score', 0.7)
+                if isinstance(attention_score, str):
+                    attention_score = 0.7
                 features.append(BehavioralFeature(
                     timestamp=timestamp,
                     feature_type="attention",
                     value=data['attention'],
-                    confidence=data.get('attention_score', 0.7),
+                    confidence=float(attention_score),
                     description=f"Attention level: {data['attention']}"
                 ))
             
             # Sentiment feature
             if 'sentiment' in data and data['sentiment'] != 'neutral':
+                sentiment_score = data.get('sentiment_score', 0.0)
+                if isinstance(sentiment_score, str):
+                    sentiment_score = 0.0
                 features.append(BehavioralFeature(
                     timestamp=timestamp,
                     feature_type="sentiment",
                     value=data['sentiment'],
-                    confidence=abs(data.get('sentiment_score', 0.0)),
+                    confidence=abs(float(sentiment_score)),
                     description=f"Audio sentiment: {data['sentiment']}"
                 ))
             
@@ -218,15 +227,18 @@ class RealBehavioralExtractor(BaseBehavioralExtractor):
             
             # Person tracking feature
             if 'person_count' in data and data['person_count'] > 0:
+                main_person_confidence = data.get('main_person_confidence', 0.8)
+                if isinstance(main_person_confidence, str):
+                    main_person_confidence = 0.8
                 features.append(BehavioralFeature(
                     timestamp=timestamp,
                     feature_type="person_tracking",
                     value={
                         'person_count': data['person_count'],
                         'main_person_id': data.get('main_person_id'),
-                        'main_person_confidence': data.get('main_person_confidence', 0.0)
+                        'main_person_confidence': float(main_person_confidence)
                     },
-                    confidence=data.get('main_person_confidence', 0.8),
+                    confidence=float(main_person_confidence),
                     description=f"Person tracking: {data['person_count']} people detected"
                 ))
             

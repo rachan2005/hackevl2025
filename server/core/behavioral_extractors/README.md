@@ -12,15 +12,9 @@ This module contains the behavioral feature extraction system for the ADK-based 
 
 ### Available Extractors
 
-#### 1. Dummy Extractor (`DummyBehavioralExtractor`)
-- **Purpose**: Synthetic behavioral feature generation for testing and development
-- **Features**: facial_expression, audio_pitch, sentiment, attention, stress, transcription
-- **Configuration**: None required
-- **Use Case**: Development, testing, demos
-
-#### 2. Real Extractor (`RealBehavioralExtractor`)
-- **Purpose**: Template for connecting to your actual behavioral analysis system
-- **Features**: All dummy features + eye_gaze, body_language, voice_emotion
+#### Real Extractor (`RealBehavioralExtractor`)
+- **Purpose**: Connects to the actual behavioral analysis system
+- **Features**: facial_expression, audio_pitch, sentiment, attention, stress, transcription, eye_gaze, body_language, voice_emotion
 - **Configuration**: api_endpoint, api_key
 - **Use Case**: Production with external behavioral analysis systems
 
@@ -31,13 +25,10 @@ This module contains the behavioral feature extraction system for the ADK-based 
 ```python
 from core.behavioral_extractors import BehavioralExtractorFactory
 
-# Create dummy extractor (for testing)
-dummy_extractor = BehavioralExtractorFactory.create_extractor("dummy")
-
 # Create real extractor (for production)
 config = {
-    "api_endpoint": "https://your-api.com/analyze",
-    "api_key": "your-api-key"
+    "api_endpoint": "http://localhost:8083",  # Behavioral analyzer API endpoint
+    "api_key": None  # No API key needed for local connection
 }
 real_extractor = BehavioralExtractorFactory.create_extractor("real", config)
 ```
@@ -61,19 +52,16 @@ info = extractor.get_extractor_info()
 await extractor.cleanup()
 ```
 
-### Switching Extractors in StateAgent
+### Configuring Extractors in StateAgent
 
-In `core/session.py`, change the extractor type:
+In `core/session.py`, the extractor is configured as:
 
 ```python
-# For testing/development
-extractor_type = "dummy"
-
 # For production with your external system
 extractor_type = "real"
 extractor_config = {
-    "api_endpoint": "https://your-behavioral-api.com/analyze",
-    "api_key": "your-api-key"
+    "api_endpoint": "http://localhost:8083",  # Behavioral analyzer API endpoint
+    "api_key": None  # No API key needed for local connection
 }
 ```
 
@@ -182,4 +170,4 @@ Run the extractor system test:
 python test_extractor_system.py
 ```
 
-This will test both dummy and real extractors, showing how the system works and what features are available.
+This will test the real extractor, showing how the system works and what features are available.
