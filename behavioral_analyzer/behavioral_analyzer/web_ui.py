@@ -8,6 +8,8 @@ behavioral analysis results including video, audio, and object detection data.
 import json
 import time
 import threading
+import os
+import socket
 from typing import Dict, Any, Optional
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
@@ -42,9 +44,42 @@ class BehavioralWebUI:
         """
         self.config = config
         self.analyzer = analyzer
+        
+        # Get the correct paths for templates and static files
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        template_folder = os.path.join(project_root, 'templates')
+        static_folder = os.path.join(project_root, 'static')
+        
+        # Debug: Print the paths
+        print(f"Current dir: {current_dir}")
+        print(f"Project root: {project_root}")
+        print(f"Template folder: {template_folder}")
+        print(f"Static folder: {static_folder}")
+        
+        # Verify paths exist
+        if not os.path.exists(template_folder):
+            print(f"ERROR: Template folder not found at {template_folder}")
+            # Try alternative path
+            template_folder = os.path.join(current_dir, '..', 'templates')
+            template_folder = os.path.abspath(template_folder)
+            print(f"Trying alternative template path: {template_folder}")
+            
+        if not os.path.exists(static_folder):
+            print(f"ERROR: Static folder not found at {static_folder}")
+            # Try alternative path
+            static_folder = os.path.join(current_dir, '..', 'static')
+            static_folder = os.path.abspath(static_folder)
+            print(f"Trying alternative static path: {static_folder}")
+        
+        print(f"Final template folder: {template_folder}")
+        print(f"Final static folder: {static_folder}")
+        print(f"Template exists: {os.path.exists(template_folder)}")
+        print(f"Static exists: {os.path.exists(static_folder)}")
+        
         self.app = Flask(__name__, 
-                        template_folder='templates',
-                        static_folder='static')
+                        template_folder=template_folder,
+                        static_folder=static_folder)
         self.app.config['SECRET_KEY'] = 'behavioral_analyzer_secret_key'
         self.socketio = SocketIO(self.app, cors_allowed_origins="*")
         
@@ -75,7 +110,15 @@ class BehavioralWebUI:
         @self.app.route('/')
         def index():
             """Main dashboard page."""
-            return render_template('dashboard.html')
+            try:
+                print(f"Template folder: {self.app.template_folder}")
+                print(f"Static folder: {self.app.static_folder}")
+                return render_template('dashboard.html')
+            except Exception as e:
+                print(f"Error rendering dashboard: {e}")
+                import traceback
+                traceback.print_exc()
+                return f"Error loading dashboard: {str(e)}", 500
         
         @self.app.route('/api/data')
         def get_data():
@@ -135,6 +178,32 @@ class BehavioralWebUI:
                 self._start_video_stream()
             elif not self.video_streaming and self.video_thread:
                 self._stop_video_stream()
+            
+            emit('status', {'message': f'Video streaming {"enabled" if self.video_streaming else "disabled"}'})
+        
+        @self.socketio.on('update_controls')
+        def handle_update_controls(data):
+            """Handle control updates from client."""
+            try:
+                print(f"Received control update: {data}")
+                
+                # Update configuration based on received data
+                if 'debug_mode' in data:
+                    self.config.debug_mode = data['debug_mode']
+                    print(f"Debug mode: {data['debug_mode']}")
+                
+                if 'show_landmarks' in data:
+                    self.config.video.show_landmarks = data['show_landmarks']
+                    print(f"Show landmarks: {data['show_landmarks']}")
+                
+                if 'show_objects' in data:
+                    self.config.video.show_object_detections = data['show_objects']
+                    print(f"Show objects: {data['show_objects']}")
+                
+                emit('status', {'message': 'Controls updated successfully'})
+            except Exception as e:
+                print(f"Error updating controls: {e}")
+                emit('status', {'message': f'Error updating controls: {str(e)}'})
     
     def _start_video_stream(self):
         """Start video streaming thread."""
@@ -198,7 +267,37 @@ class BehavioralWebUI:
                 time.sleep(0.1)  # 10 Hz update rate
             except Exception as e:
                 print(f"Data collection error: {e}")
+                # Continue emitting even if there's an error, with fallback data
+                try:
+                    fallback_data = {
+                        'video': {'emotion': 'Unknown', 'fps': 0, 'blink_rate': 0},
+                        'audio': {'transcription': '', 'emotion': 'neutral', 'sentiment': 0.0, 'confidence': 0.0},
+                        'objects': {'detections': []},
+                        'session_stats': {'session_duration': 0, 'timestamp': time.time()}
+                    }
+                    self.socketio.emit('data_update', fallback_data)
+                except Exception as emit_error:
+                    print(f"Failed to emit fallback data: {emit_error}")
                 time.sleep(0.1)
+    
+    def _convert_numpy_types(self, obj):
+        """Convert numpy types to native Python types for JSON serialization."""
+        import numpy as np
+        
+        if isinstance(obj, dict):
+            return {key: self._convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy_types(item) for item in obj]
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif hasattr(obj, 'item'):  # Handle numpy scalars
+            return obj.item()
+        else:
+            return obj
     
     def _collect_analyzer_data(self):
         """Collect data from the analyzer."""
@@ -212,15 +311,15 @@ class BehavioralWebUI:
         if hasattr(self.analyzer, 'video_analyzer'):
             va = self.analyzer.video_analyzer
             video_data = {
-                'emotion': getattr(va, 'current_emotion', 'Unknown'),
+                'emotion': str(getattr(va, 'current_emotion', 'Unknown')),
                 'emotion_scores': getattr(va, 'emotion_scores', {}),
-                'attention_state': getattr(va, 'attention_state', 'Unknown'),
-                'posture_state': getattr(va, 'posture_state', 'Unknown'),
-                'movement_level': getattr(va, 'movement_level', 'Unknown'),
-                'fatigue_level': getattr(va, 'fatigue_level', 'Normal'),
-                'blink_rate': getattr(va, 'blink_count', 0) / max(1, current_time - getattr(va, 'last_reset_time', current_time)) * 60.0,
-                'total_blinks': getattr(va, 'total_blink_count', 0),
-                'fps': getattr(va.performance_tracker, 'current_fps', 0.0) if hasattr(va, 'performance_tracker') else 0.0,
+                'attention_state': str(getattr(va, 'attention_state', 'Unknown')),
+                'posture_state': str(getattr(va, 'posture_state', 'Unknown')),
+                'movement_level': str(getattr(va, 'movement_level', 'Unknown')),
+                'fatigue_level': str(getattr(va, 'fatigue_level', 'Normal')),
+                'blink_rate': float(getattr(va, 'blink_count', 0) / max(1, current_time - getattr(va, 'last_reset_time', current_time)) * 60.0),
+                'total_blinks': int(getattr(va, 'total_blink_count', 0)),
+                'fps': float(getattr(va.performance_tracker, 'current_fps', 0.0) if hasattr(va, 'performance_tracker') else 0.0),
                 'person_tracking': getattr(va, '_get_person_tracking_data', lambda: {})(),
                 'main_person': getattr(va, 'main_person', None)
             }
@@ -229,11 +328,21 @@ class BehavioralWebUI:
         audio_data = {}
         if hasattr(self.analyzer, 'audio_analyzer'):
             aa = self.analyzer.audio_analyzer
+            
+            # Handle confidence conversion - it can be a string like "low", "medium", "high"
+            confidence_value = getattr(aa, 'current_confidence', 0.0)
+            if isinstance(confidence_value, str):
+                confidence_map = {"low": 0.3, "medium": 0.6, "high": 0.9}
+                confidence_numeric = confidence_map.get(confidence_value.lower(), 0.0)
+            else:
+                confidence_numeric = float(confidence_value)
+            
             audio_data = {
-                'transcription': getattr(aa, 'current_transcription', ''),
-                'emotion': getattr(aa, 'current_emotion', 'neutral'),
-                'sentiment': getattr(aa, 'current_sentiment', 0.0),
-                'confidence': getattr(aa, 'current_confidence', 0.0),
+                'transcription': str(getattr(aa, 'current_transcription', '')),
+                'emotion': str(getattr(aa, 'current_emotion', 'neutral')),
+                'sentiment': float(getattr(aa, 'current_sentiment', 0.0)),
+                'confidence': confidence_numeric,
+                'confidence_label': str(confidence_value) if isinstance(confidence_value, str) else "unknown",
                 'audio_features': getattr(aa, 'audio_features', {}),
                 'session_stats': getattr(aa, 'session_stats', {})
             }
@@ -251,10 +360,16 @@ class BehavioralWebUI:
         
         # Session statistics
         session_stats = {
-            'session_duration': current_time - getattr(self.analyzer, 'session_start_time', current_time),
-            'total_frames_processed': getattr(self.analyzer, 'total_frames_processed', 0),
-            'timestamp': current_time
+            'session_duration': float(current_time - getattr(self.analyzer, 'session_start_time', current_time)),
+            'total_frames_processed': int(getattr(self.analyzer, 'total_frames_processed', 0)),
+            'timestamp': float(current_time)
         }
+        
+        # Convert all numpy types to native Python types
+        video_data = self._convert_numpy_types(video_data)
+        audio_data = self._convert_numpy_types(audio_data)
+        objects_data = self._convert_numpy_types(objects_data)
+        session_stats = self._convert_numpy_types(session_stats)
         
         # Update latest data
         self.latest_data = {
@@ -262,7 +377,7 @@ class BehavioralWebUI:
             'audio': audio_data,
             'objects': objects_data,
             'session_stats': session_stats,
-            'timestamp': current_time
+            'timestamp': float(current_time)
         }
     
     def start_analyzer(self):

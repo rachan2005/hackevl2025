@@ -9,7 +9,7 @@ scipy>=1.10.0
 pillow>=9.5.0
 
 # Machine Learning & AI
-tensorflow-macos>=2.13.0
+tensorflow>=2.13.0
 tf-keras>=2.13.0
 deepface>=0.0.79
 ultralytics>=8.0.0

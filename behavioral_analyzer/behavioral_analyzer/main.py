@@ -263,6 +263,11 @@ def main():
         consecutive_failures = 0
         max_failures = 5
         
+        # Setup data export for web UI
+        data_export_file = os.path.join(config.output.output_dir, 'analyzer_data.json')
+        last_export_time = 0
+        export_interval = 0.5  # Export every 500ms
+        
         try:
             while True:
                 # Process frame
@@ -278,6 +283,68 @@ def main():
                 
                 # Reset failure counter
                 consecutive_failures = 0
+                
+                # Export data for web UI
+                current_time = time.time()
+                if current_time - last_export_time >= export_interval:
+                    try:
+                        export_data = {
+                            'video': {},
+                            'audio': {},
+                            'objects': {},
+                            'session_stats': {
+                                'session_duration': current_time - analyzer.session_start_time,
+                                'timestamp': current_time
+                            }
+                        }
+                        
+                        # Video analysis data
+                        if hasattr(analyzer, 'video_analyzer'):
+                            va = analyzer.video_analyzer
+                            export_data['video'] = {
+                                'emotion': str(getattr(va, 'current_emotion', 'Unknown')),
+                                'attention_state': str(getattr(va, 'attention_state', 'Unknown')),
+                                'posture_state': str(getattr(va, 'posture_state', 'Unknown')),
+                                'fatigue_level': str(getattr(va, 'fatigue_level', 'Normal')),
+                                'blink_rate': float(getattr(va, 'blink_count', 0) / max(1, current_time - getattr(va, 'last_reset_time', current_time)) * 60.0),
+                                'total_blinks': int(getattr(va, 'total_blink_count', 0)),
+                                'fps': float(getattr(va.performance_tracker, 'current_fps', 0.0) if hasattr(va, 'performance_tracker') else 0.0)
+                            }
+                        
+                        # Audio analysis data
+                        if hasattr(analyzer, 'audio_analyzer'):
+                            aa = analyzer.audio_analyzer
+                            confidence_value = getattr(aa, 'current_confidence', 0.0)
+                            if isinstance(confidence_value, str):
+                                confidence_map = {"low": 0.3, "medium": 0.6, "high": 0.9}
+                                confidence_numeric = confidence_map.get(confidence_value.lower(), 0.0)
+                            else:
+                                confidence_numeric = float(confidence_value)
+                            
+                            export_data['audio'] = {
+                                'transcription': str(getattr(aa, 'current_transcription', '')),
+                                'emotion': str(getattr(aa, 'current_emotion', 'neutral')),
+                                'sentiment': float(getattr(aa, 'current_sentiment', 0.0)),
+                                'confidence': confidence_numeric
+                            }
+                        
+                        # Object detection data
+                        if hasattr(analyzer, 'video_analyzer') and hasattr(analyzer.video_analyzer, 'current_detections'):
+                            detections = analyzer.video_analyzer.current_detections
+                            export_data['objects'] = {
+                                'detections': detections or []
+                            }
+                        
+                        # Write to file
+                        os.makedirs(os.path.dirname(data_export_file), exist_ok=True)
+                        with open(data_export_file, 'w') as f:
+                            import json
+                            json.dump(export_data, f, indent=2)
+                        
+                        last_export_time = current_time
+                        
+                    except Exception as e:
+                        print(f"Data export error: {e}")
                 
                 # Display frame if not in headless mode
                 if not args.no_display:

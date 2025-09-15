@@ -38,7 +38,13 @@ def main():
     # Load configuration
     config = Config()
     if args.config:
-        config.load_from_json(args.config)
+        try:
+            config = Config.load_from_file(args.config)
+            print(f"Loaded configuration from {args.config}")
+        except Exception as e:
+            print(f"Error loading configuration: {e}")
+            print("Using default configuration")
+            config = Config()
     
     # Apply command line overrides
     if args.camera is not None:
