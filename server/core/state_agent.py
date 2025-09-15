@@ -47,7 +47,7 @@ class CorrelatedInsight:
 class StateAgent:
     """Processes state information and correlates behavioral features with conversation"""
     
-    def __init__(self, session_id: str, shared_state: Dict[str, Any], extractor_type: str = "dummy", extractor_config: Dict[str, Any] = None):
+    def __init__(self, session_id: str, shared_state: Dict[str, Any], extractor_type: str = "real", extractor_config: Dict[str, Any] = None):
         self.session_id = session_id
         self.shared_state = shared_state
         self.behavioral_features: List[BehavioralFeature] = []

@@ -333,3 +333,4 @@ def create_timestamped_filename(prefix: str, extension: str, directory: str = ".
 def ensure_directory_exists(directory: str) -> None:
     """Ensure directory exists, create if it doesn't."""
     os.makedirs(directory, exist_ok=True)
+

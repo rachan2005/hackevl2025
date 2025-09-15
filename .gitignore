@@ -60,6 +60,9 @@ yolov8*.pt
 *.avi
 *.mov
 
+# Exclude embedded repositories
+adk-voice-agent/
+
 # Temporary files
 *.tmp
 *.temp
@@ -130,10 +133,11 @@ logs/
 temp/
 tmp/
 
-# Test files
-test_*.py
+# Test files (allow integration test)
 *_test.py
 tests/
+# Allow integration test script
+!test_integration.py
 
 # Documentation build
 docs/_build/

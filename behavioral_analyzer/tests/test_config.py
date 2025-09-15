@@ -149,3 +149,4 @@ class TestConfig:
             # The directory should be created in __post_init__
             assert os.path.exists(output_dir)
             assert os.path.isdir(output_dir)
+

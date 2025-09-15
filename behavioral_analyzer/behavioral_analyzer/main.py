@@ -99,6 +99,12 @@ Examples:
     parser.add_argument('--high-quality', action='store_true', 
                        help='Optimize for high quality')
     
+    # API server options
+    parser.add_argument('--enable-api', action='store_true', 
+                       help='Enable HTTP API server for external integration')
+    parser.add_argument('--api-port', type=int, default=8083, 
+                       help='API server port (default: 8083)')
+    
     return parser.parse_args()
 
 
@@ -249,7 +255,11 @@ def main():
         print(f"Debug Mode: {'Enabled' if config.video.debug_mode else 'Disabled'}")
         
         # Initialize analyzer
-        analyzer = UnifiedBehavioralAnalyzer(config)
+        analyzer = UnifiedBehavioralAnalyzer(
+            config, 
+            enable_api=args.enable_api, 
+            api_port=args.api_port
+        )
         
         # Start analysis
         if not analyzer.start_analysis():
@@ -323,3 +333,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

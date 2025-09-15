@@ -480,3 +480,4 @@ class AudioAnalyzer:
         """Clean up audio analyzer resources."""
         self.stop()
         print("Audio analyzer cleaned up")
+

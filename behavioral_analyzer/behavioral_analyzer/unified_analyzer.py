@@ -9,12 +9,14 @@ import cv2
 import time
 import threading
 import os
+import asyncio
 from typing import Dict, Any, Optional, Tuple
 import numpy as np
 
 from .config import Config
 from .video_analyzer import VideoAnalyzer
 from .audio_analyzer import AudioAnalyzer
+from .api_server import get_api_server
 from .utils import (
     DataCollector, PerformanceTracker, ColorUtils, 
     ensure_directory_exists, create_timestamped_filename
@@ -24,8 +26,10 @@ from .utils import (
 class UnifiedBehavioralAnalyzer:
     """Unified analyzer combining video and audio behavioral analysis."""
     
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, enable_api: bool = True, api_port: int = 8083):
         self.config = config
+        self.enable_api = enable_api
+        self.api_port = api_port
         
         # Initialize data collection
         self.data_collector = DataCollector(
@@ -39,6 +43,11 @@ class UnifiedBehavioralAnalyzer:
         # Initialize analyzers
         self.video_analyzer = VideoAnalyzer(config.video, self.data_collector)
         self.audio_analyzer = AudioAnalyzer(config.audio, self.data_collector)
+        
+        # Initialize API server if enabled
+        self.api_server = None
+        if self.enable_api:
+            self.api_server = get_api_server(self.api_port)
         
         # Unified state
         self.unified_state = {
@@ -66,6 +75,19 @@ class UnifiedBehavioralAnalyzer:
     def start_analysis(self, camera_id: Optional[int] = None) -> bool:
         """Start the unified analysis system."""
         try:
+            # Start API server if enabled
+            if self.enable_api and self.api_server:
+                # Start API server in a separate thread
+                def start_api():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(self.api_server.start())
+                    loop.run_forever()
+                
+                api_thread = threading.Thread(target=start_api, daemon=True)
+                api_thread.start()
+                print(f"API server started on port {self.api_port}")
+            
             # Set camera ID if provided
             if camera_id is not None:
                 self.config.video.camera_id = camera_id
@@ -113,6 +135,10 @@ class UnifiedBehavioralAnalyzer:
             # Update unified state
             self._update_unified_state()
             
+            # Update API server with current data
+            if self.api_server:
+                self._update_api_data()
+            
             # Add unified analysis overlay
             self._add_unified_overlay(annotated_frame)
             
@@ -158,6 +184,33 @@ class UnifiedBehavioralAnalyzer:
         
         # Collect combined data
         self._collect_combined_data()
+    
+    def _update_api_data(self):
+        """Update API server with current behavioral data."""
+        try:
+            # Prepare comprehensive data for API
+            api_data = {
+                # Video analysis data
+                'emotion': self.unified_state.get('emotion', 'unknown'),
+                'attention': self.unified_state.get('attention', 'unknown'),
+                'posture': self.unified_state.get('posture', 'unknown'),
+                'movement': self.unified_state.get('movement', 'unknown'),
+                'fatigue': self.unified_state.get('fatigue', 'normal'),
+                
+                # Audio analysis data
+                'transcription': self.unified_state.get('transcription', ''),
+                'sentiment': self.unified_state.get('sentiment', 'neutral'),
+                'confidence': self.unified_state.get('confidence', 0.0),
+                
+                # Performance data
+                'session_duration': time.time() - self.session_start_time
+            }
+            
+            # Update API server
+            self.api_server.update_data(api_data)
+            
+        except Exception as e:
+            print(f"Error updating API data: {e}")
     
     def _combine_emotions(self, video_emotion: str, audio_emotion: str) -> str:
         """Combine video and audio emotions with intelligent fusion."""

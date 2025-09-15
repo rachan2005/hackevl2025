@@ -227,3 +227,4 @@ For questions or issues, please open an issue on GitHub or contact the HackEVL 2
 ---
 
 **Built with ❤️ for HackEVL 2025**
+
