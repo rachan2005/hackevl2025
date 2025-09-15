@@ -91,11 +91,26 @@ class MinimalWebUI:
                     with open(self.data_file, 'r') as f:
                         file_data = json.load(f)
                     
+                    # Debug: Log complete data structure
+                    print(f"Complete data structure: {file_data}")
+                    
                     # Debug: Log calibration data
                     if 'calibration' in file_data:
                         print(f"Calibration data found: {file_data['calibration']}")
                     else:
                         print("No calibration data in file")
+                    
+                    # Debug: Log video calibrated data
+                    if 'video' in file_data and 'blink_rate_calibrated' in file_data['video']:
+                        print(f"Video calibrated data: {file_data['video']['blink_rate_calibrated']}")
+                    else:
+                        print("No video calibrated data found")
+                    
+                    # Debug: Log audio calibrated data  
+                    if 'audio' in file_data and 'sentiment_calibrated' in file_data['audio']:
+                        print(f"Audio calibrated data: {file_data['audio']['sentiment_calibrated']}")
+                    else:
+                        print("No audio calibrated data found")
                     
                     # Update latest data
                     self.latest_data = file_data
