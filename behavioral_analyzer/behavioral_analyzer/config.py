@@ -75,13 +75,6 @@ class AudioConfig:
     enable_emotion_detection: bool = True
     enable_sentiment_analysis: bool = True
     enable_prosody_analysis: bool = True
-    enable_vad: bool = True
-    
-    # Voice Activity Detection (VAD) settings
-    vad_threshold: float = 0.2  # Lowered from 0.5 for better sensitivity to normal speech
-    vad_min_speech_duration: float = 0.15  # Reduced from 0.25 for shorter utterances
-    vad_min_silence_duration: float = 0.3  # Reduced from 0.5 for faster response
-    vad_speech_pad: float = 0.05  # Reduced padding for more precise detection
     
     # Whisper parameters
     beam_size: int = 1

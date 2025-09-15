@@ -20,7 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-/Users/nihaalyk/Documents/GitHub/hackevl2025/app
+
 # Virtual environments
 .env
 .venv
@@ -52,8 +52,9 @@ video/
 demo_results/
 session_*.json
 *.csv
-*.txt
+# Allow requirements.txt files
 !requirements.txt
+!*/requirements.txt
 yolov8*.pt
 *.mp4
 *.avi
